@@ -70,7 +70,7 @@
           <input id="search-input" type="text" placeholder="제목·설교자·구절·태그 검색"
             class="w-full pl-9 pr-3 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400">
         </div>
-        <button onclick="openForm()" class="px-4 py-2.5 rounded-xl emerald-gradient text-white text-sm font-bold shadow-sm hover:opacity-90 transition-all whitespace-nowrap">
+        <button onclick="openForm()" class="editor-only hidden px-4 py-2.5 rounded-xl emerald-gradient text-white text-sm font-bold shadow-sm hover:opacity-90 transition-all whitespace-nowrap">
           <i class="fas fa-plus mr-1"></i> 추가
         </button>
         <button onclick="shareLatestSermon()" title="이번 주 설교 공유"
@@ -100,9 +100,11 @@
 
       <!-- 데이터 관리 -->
       <div class="pt-4 border-t border-stone-100 flex items-center justify-center gap-4 text-xs text-stone-400">
-        <button onclick="exportData()" class="hover:text-emerald-600 transition-colors"><i class="fas fa-download mr-1"></i>내보내기(JSON)</button>
-        <span>·</span>
-        <label class="hover:text-emerald-600 transition-colors cursor-pointer">
+        <button id="editor-toggle-btn" onclick="toggleEditorMode()" class="hover:text-emerald-600 transition-colors"></button>
+        <span class="editor-only hidden">·</span>
+        <button onclick="exportData()" class="editor-only hidden hover:text-emerald-600 transition-colors"><i class="fas fa-download mr-1"></i>내보내기(JSON)</button>
+        <span class="editor-only hidden">·</span>
+        <label class="editor-only hidden hover:text-emerald-600 transition-colors cursor-pointer">
           <i class="fas fa-upload mr-1"></i>가져오기(JSON)
           <input type="file" accept="application/json" class="hidden" onchange="importData(event)">
         </label>
@@ -120,22 +122,25 @@
         <button onclick="shareCurrentSermon()" class="text-xs font-bold px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full hover:bg-emerald-100 transition-colors">
           <i class="fas fa-share-nodes mr-1"></i>공유
         </button>
-        <button onclick="editCurrent()" class="text-xs font-bold px-3 py-1 bg-stone-100 text-stone-600 rounded-full hover:bg-stone-200 transition-colors">
+        <button onclick="editCurrent()" class="editor-only hidden text-xs font-bold px-3 py-1 bg-stone-100 text-stone-600 rounded-full hover:bg-stone-200 transition-colors">
           <i class="fas fa-pen mr-1"></i>수정
         </button>
-        <button onclick="deleteCurrent()" class="text-xs font-bold px-3 py-1 bg-red-50 text-red-500 rounded-full hover:bg-red-100 transition-colors">
+        <button onclick="deleteCurrent()" class="editor-only hidden text-xs font-bold px-3 py-1 bg-red-50 text-red-500 rounded-full hover:bg-red-100 transition-colors">
           <i class="fas fa-trash mr-1"></i>삭제
         </button>
       </div>
     </div>
 
-    <div class="p-6 sm:p-8 space-y-6 pb-16">
-      <div class="text-center space-y-3 mt-2">
-        <div id="d-meta" class="text-xs font-bold px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full inline-block"></div>
-        <h1 id="d-title" class="text-2xl sm:text-3xl font-bold text-stone-800 break-keep leading-tight"></h1>
-        <p id="d-passage" class="text-emerald-600 font-medium"></p>
+    <div class="wood-gradient text-white p-8 text-center relative overflow-hidden">
+      <div class="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')]"></div>
+      <div class="relative z-10 space-y-3">
+        <div id="d-meta" class="inline-block py-1 px-3 rounded-full bg-white/20 text-xs font-semibold tracking-wider text-amber-50 backdrop-blur-sm"></div>
+        <h1 id="d-title" class="text-2xl sm:text-3xl font-bold break-keep leading-tight"></h1>
+        <p id="d-passage" class="text-amber-100/90 font-medium"></p>
       </div>
+    </div>
 
+    <div class="p-6 sm:p-8 space-y-6 pb-16">
       <div id="d-video-wrap" class="hidden space-y-2">
         <div id="d-video-iframe-wrap" class="hidden video-container shadow-md border border-stone-200">
           <iframe id="d-video" src="" title="설교 영상" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
@@ -610,6 +615,32 @@ function show(viewId) {
   ['home-view','detail-view','form-view'].forEach(id => {
     document.getElementById(id).classList.toggle('hidden', id !== viewId);
   });
+  updateEditorUI();
+}
+
+function isEditorUnlocked() { return !!getSavedPassword(); }
+
+function updateEditorUI() {
+  const on = isEditorUnlocked();
+  document.querySelectorAll('.editor-only').forEach(el => el.classList.toggle('hidden', !on));
+  const btn = document.getElementById('editor-toggle-btn');
+  if (btn) {
+    btn.innerHTML = on
+      ? '<i class="fas fa-lock-open mr-1"></i>편집자 모드 (로그아웃)'
+      : '<i class="fas fa-lock mr-1"></i>편집자이신가요? 로그인';
+  }
+}
+
+function toggleEditorMode() {
+  if (isEditorUnlocked()) {
+    clearSavedPassword();
+    updateEditorUI();
+    return;
+  }
+  const pw = prompt('편집 비밀번호를 입력하세요 (목사님·사용자님만 아는 공유 비밀번호)');
+  if (!pw) return;
+  sessionStorage.setItem(EDIT_PW_KEY, pw);
+  updateEditorUI();
 }
 
 function openForm() {
