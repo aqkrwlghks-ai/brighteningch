@@ -73,7 +73,7 @@
         <button onclick="openForm()" class="px-4 py-2.5 rounded-xl emerald-gradient text-white text-sm font-bold shadow-sm hover:opacity-90 transition-all whitespace-nowrap">
           <i class="fas fa-plus mr-1"></i> 추가
         </button>
-        <button onclick="shareLink(location.origin + location.pathname, '나의 설교 아카이브', '설교를 정리하고 다시 볼 수 있는 아카이브입니다.')"
+        <button onclick="shareLatestSermon()" title="이번 주 설교 공유"
           class="px-3.5 py-2.5 rounded-xl border border-stone-200 text-stone-500 text-sm font-bold hover:bg-stone-50 transition-all whitespace-nowrap">
           <i class="fas fa-share-nodes"></i>
         </button>
@@ -593,6 +593,17 @@ function shareCurrentSermon() {
   if (!s) return;
   const url = location.origin + location.pathname + '#' + s.id;
   shareLink(url, s.title, [s.date, s.speaker].filter(Boolean).join(' · '));
+}
+
+// 홈 화면 공유 버튼: 목록 전체가 아니라 '이번 주(가장 최근) 설교' 한 건만 공유한다.
+function shareLatestSermon() {
+  if (!sermons.length) {
+    shareLink(location.origin + location.pathname, '나의 설교 아카이브', '아직 등록된 설교가 없습니다.');
+    return;
+  }
+  const latest = [...sermons].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
+  const url = location.origin + location.pathname + '#' + latest.id;
+  shareLink(url, latest.title, [latest.date, latest.speaker].filter(Boolean).join(' · '));
 }
 
 function show(viewId) {
