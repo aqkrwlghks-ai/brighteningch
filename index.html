@@ -572,7 +572,7 @@ function openDetail(id) {
     <span class="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">#${escapeHtml(t)}</span>
   `).join('');
 
-  history.replaceState(null, '', '#' + id);
+  history.replaceState(null, '', '?id=' + id);
   show('detail-view');
   window.scrollTo(0,0);
 }
@@ -601,7 +601,7 @@ async function shareLink(url, title, text) {
 function shareCurrentSermon() {
   const s = sermons.find(x => x.id === currentId);
   if (!s) return;
-  const url = location.origin + location.pathname + '#' + s.id;
+  const url = location.origin + location.pathname + '?id=' + s.id;
   shareLink(url, s.title, [s.date, s.speaker].filter(Boolean).join(' · '));
 }
 
@@ -828,10 +828,10 @@ document.getElementById('search-input').addEventListener('input', renderList);
 document.addEventListener('DOMContentLoaded', async () => {
   await loadData();
   document.getElementById('app-loading').classList.add('hidden');
-  const hashId = location.hash.slice(1);
-  if (hashId && sermons.some(s => s.id === hashId)) {
+  const linkedId = new URLSearchParams(location.search).get('id') || location.hash.slice(1);
+  if (linkedId && sermons.some(s => s.id === linkedId)) {
     renderFilters();
-    openDetail(hashId);
+    openDetail(linkedId);
   } else {
     goHome();
   }
