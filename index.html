@@ -352,7 +352,7 @@ function sermonToPayload(s, keepId) {
 
 async function loadData() {
   const { data, error } = await supabaseClient
-    .from('sermons')
+    .from('sermon_archive')
     .select('*')
     .order('sermon_date', { ascending: false, nullsFirst: false });
   if (error) {
