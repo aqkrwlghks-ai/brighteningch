@@ -60,6 +60,10 @@
         <button onclick="openForm()" class="px-4 py-2.5 rounded-xl emerald-gradient text-white text-sm font-bold shadow-sm hover:opacity-90 transition-all whitespace-nowrap">
           <i class="fas fa-plus mr-1"></i> 추가
         </button>
+        <button onclick="shareLink(location.origin + location.pathname, '나의 설교 아카이브', '설교를 정리하고 다시 볼 수 있는 아카이브입니다.')"
+          class="px-3.5 py-2.5 rounded-xl border border-stone-200 text-stone-500 text-sm font-bold hover:bg-stone-50 transition-all whitespace-nowrap">
+          <i class="fas fa-share-nodes"></i>
+        </button>
       </div>
 
       <!-- 설교자 필터 -->
@@ -100,6 +104,9 @@
         <i class="fas fa-arrow-left"></i> 목록으로
       </button>
       <div class="flex items-center gap-2">
+        <button onclick="shareCurrentSermon()" class="text-xs font-bold px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full hover:bg-emerald-100 transition-colors">
+          <i class="fas fa-share-nodes mr-1"></i>공유
+        </button>
         <button onclick="editCurrent()" class="text-xs font-bold px-3 py-1 bg-stone-100 text-stone-600 rounded-full hover:bg-stone-200 transition-colors">
           <i class="fas fa-pen mr-1"></i>수정
         </button>
@@ -542,15 +549,37 @@ function openDetail(id) {
     <span class="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">#${escapeHtml(t)}</span>
   `).join('');
 
+  history.replaceState(null, '', '#' + id);
   show('detail-view');
   window.scrollTo(0,0);
 }
 
 function goHome() {
+  history.replaceState(null, '', location.pathname);
   renderFilters();
   renderList();
   show('home-view');
   window.scrollTo(0,0);
+}
+
+async function shareLink(url, title, text) {
+  if (navigator.share) {
+    try { await navigator.share({ title, text, url }); } catch (e) { /* 취소 등은 무시 */ }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    alert('링크가 복사되었습니다. 카카오톡 등에 붙여넣어 공유해보세요.');
+  } catch (e) {
+    prompt('아래 링크를 복사해서 공유하세요:', url);
+  }
+}
+
+function shareCurrentSermon() {
+  const s = sermons.find(x => x.id === currentId);
+  if (!s) return;
+  const url = location.origin + location.pathname + '#' + s.id;
+  shareLink(url, s.title, [s.date, s.speaker].filter(Boolean).join(' · '));
 }
 
 function show(viewId) {
@@ -739,7 +768,13 @@ document.getElementById('search-input').addEventListener('input', renderList);
 document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('sermon-list').innerHTML = '<p class="text-center text-stone-400 text-sm py-8"><i class="fas fa-spinner fa-spin mr-1"></i> 불러오는 중...</p>';
   await loadData();
-  goHome();
+  const hashId = location.hash.slice(1);
+  if (hashId && sermons.some(s => s.id === hashId)) {
+    renderFilters();
+    openDetail(hashId);
+  } else {
+    goHome();
+  }
 });
 </script>
 </body>
