@@ -7,6 +7,7 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.8/dist/web/static/pretendard.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   body {
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
@@ -245,10 +246,11 @@
 </main>
 
 <script>
-const STORAGE_KEY = 'sermon_organizer_data_v1';
+const SUPABASE_URL = 'https://vogslryxeicemtotleph.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_XFxawpPt098rCpSPPE4U_A_-GJbrBuF';
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// 최초 배포시 아무 데이터도 없을 때를 위한 예시 시드(원하면 지워도 됩니다)
-const SEED_SERMONS = [];
+const EDIT_PW_KEY = 'sermon_organizer_edit_pw';
 
 let sermons = [];
 let currentId = null;
@@ -285,23 +287,66 @@ function nextSlide() {
   renderSlideViewer();
 }
 
-function loadData() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (raw) {
-    try { sermons = JSON.parse(raw); return; } catch(e) { /* fallthrough */ }
-  }
-  sermons = SEED_SERMONS.slice();
+function dbRowToSermon(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    date: row.sermon_date,
+    speaker: row.speaker,
+    passageRef: row.passage_ref,
+    youtubeUrl: row.youtube_url,
+    summary: row.summary,
+    highlights: row.highlights || [],
+    tags: row.tags || [],
+    memo: row.memo,
+    slides: row.slides || [],
+  };
 }
 
-// candidateSermons를 저장 시도하고 성공 여부를 반환한다 (localStorage 용량 초과 대비)
-function saveData(candidateSermons) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(candidateSermons));
-    return true;
-  } catch (err) {
-    alert('저장 공간이 부족합니다. 슬라이드 이미지 수를 줄이거나(또는 낮은 해상도로), 예전 설교를 삭제한 뒤 다시 시도해주세요.');
-    return false;
+function sermonToPayload(s, keepId) {
+  return {
+    id: keepId ? (s.id || null) : null,
+    title: s.title,
+    sermon_date: s.date || null,
+    speaker: s.speaker,
+    passage_ref: s.passageRef,
+    youtube_url: s.youtubeUrl,
+    summary: s.summary,
+    highlights: s.highlights || [],
+    tags: s.tags || [],
+    memo: s.memo,
+    slides: s.slides || [],
+  };
+}
+
+async function loadData() {
+  const { data, error } = await supabaseClient
+    .from('sermons')
+    .select('*')
+    .order('sermon_date', { ascending: false, nullsFirst: false });
+  if (error) {
+    console.error(error);
+    alert('설교 목록을 불러오지 못했습니다: ' + error.message);
+    sermons = [];
+    return;
   }
+  sermons = data.map(dbRowToSermon);
+}
+
+function getSavedPassword() { return sessionStorage.getItem(EDIT_PW_KEY); }
+function clearSavedPassword() { sessionStorage.removeItem(EDIT_PW_KEY); }
+
+async function promptPassword() {
+  let pw = getSavedPassword();
+  if (pw) return pw;
+  pw = prompt('편집 비밀번호를 입력하세요 (목사님·사용자님만 아는 공유 비밀번호)');
+  if (!pw) return null;
+  sessionStorage.setItem(EDIT_PW_KEY, pw);
+  return pw;
+}
+
+function isWrongPasswordError(error) {
+  return !!error && /비밀번호/.test(error.message || '');
 }
 
 function extractYoutubeId(url) {
@@ -572,9 +617,12 @@ function cancelForm() {
   if (currentId) { show('detail-view'); } else { goHome(); }
 }
 
-function saveSermon(e) {
+async function saveSermon(e) {
   e.preventDefault();
-  const id = document.getElementById('f-id').value || String(Date.now());
+  const pw = await promptPassword();
+  if (pw === null) return;
+
+  const id = document.getElementById('f-id').value || null;
   const data = {
     id,
     title: document.getElementById('f-title').value.trim(),
@@ -589,22 +637,50 @@ function saveSermon(e) {
     slides: pendingSlides !== null ? pendingSlides : editingSlides,
   };
 
-  const idx = sermons.findIndex(x => x.id === id);
-  const nextSermons = sermons.slice();
-  if (idx >= 0) nextSermons[idx] = data; else nextSermons.push(data);
+  const submitBtn = document.querySelector('#sermon-form button[type=submit]');
+  submitBtn.disabled = true;
+  submitBtn.innerText = '저장 중...';
 
-  if (!saveData(nextSermons)) return;
-  sermons = nextSermons;
-  currentId = id;
-  openDetail(id);
+  const { data: row, error } = await supabaseClient.rpc('sermons_upsert', {
+    p_data: sermonToPayload(data, true),
+    p_password: pw,
+  });
+
+  submitBtn.disabled = false;
+  submitBtn.innerHTML = '<i class="fas fa-check-circle mr-1"></i> 저장하기';
+
+  if (error) {
+    if (isWrongPasswordError(error)) {
+      clearSavedPassword();
+      alert('비밀번호가 올바르지 않습니다. 다시 시도해주세요.');
+    } else {
+      alert('저장에 실패했습니다: ' + error.message);
+    }
+    return;
+  }
+
+  await loadData();
+  currentId = row.id;
+  openDetail(row.id);
 }
 
-function deleteCurrent() {
+async function deleteCurrent() {
   if (!currentId) return;
   if (!confirm('이 설교를 삭제할까요? 되돌릴 수 없습니다.')) return;
-  const nextSermons = sermons.filter(x => x.id !== currentId);
-  if (!saveData(nextSermons)) return;
-  sermons = nextSermons;
+  const pw = await promptPassword();
+  if (pw === null) return;
+
+  const { error } = await supabaseClient.rpc('sermons_delete', { p_id: currentId, p_password: pw });
+  if (error) {
+    if (isWrongPasswordError(error)) {
+      clearSavedPassword();
+      alert('비밀번호가 올바르지 않습니다. 다시 시도해주세요.');
+    } else {
+      alert('삭제에 실패했습니다: ' + error.message);
+    }
+    return;
+  }
+  await loadData();
   currentId = null;
   goHome();
 }
@@ -619,24 +695,40 @@ function exportData() {
   URL.revokeObjectURL(url);
 }
 
-function importData(event) {
+async function importData(event) {
   const file = event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
+    let imported;
     try {
-      const imported = JSON.parse(reader.result);
+      imported = JSON.parse(reader.result);
       if (!Array.isArray(imported)) throw new Error('배열 형식이 아닙니다.');
-      const byId = new Map(sermons.map(s => [s.id, s]));
-      imported.forEach(s => byId.set(s.id, s));
-      const nextSermons = [...byId.values()];
-      if (!saveData(nextSermons)) return;
-      sermons = nextSermons;
-      goHome();
-      alert(`${imported.length}건을 가져왔습니다.`);
     } catch (err) {
       alert('가져오기에 실패했습니다: 올바른 JSON 파일인지 확인해주세요.');
+      event.target.value = '';
+      return;
     }
+
+    const pw = await promptPassword();
+    if (pw === null) { event.target.value = ''; return; }
+
+    let ok = 0, fail = 0;
+    for (const s of imported) {
+      const { error } = await supabaseClient.rpc('sermons_upsert', {
+        p_data: sermonToPayload(s, false),
+        p_password: pw,
+      });
+      if (error) {
+        fail++;
+        if (isWrongPasswordError(error)) { clearSavedPassword(); break; }
+      } else {
+        ok++;
+      }
+    }
+    await loadData();
+    goHome();
+    alert(`${ok}건 가져오기 완료${fail ? `, ${fail}건 실패` : ''}`);
     event.target.value = '';
   };
   reader.readAsText(file);
@@ -644,8 +736,9 @@ function importData(event) {
 
 document.getElementById('search-input').addEventListener('input', renderList);
 
-document.addEventListener('DOMContentLoaded', () => {
-  loadData();
+document.addEventListener('DOMContentLoaded', async () => {
+  document.getElementById('sermon-list').innerHTML = '<p class="text-center text-stone-400 text-sm py-8"><i class="fas fa-spinner fa-spin mr-1"></i> 불러오는 중...</p>';
+  await loadData();
   goHome();
 });
 </script>
