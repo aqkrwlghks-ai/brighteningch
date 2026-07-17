@@ -70,7 +70,7 @@
 
       <!-- 검색 + 추가 버튼 -->
       <div class="flex gap-2">
-        <div class="relative flex-1">
+        <div class="relative flex-1 min-w-0">
           <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
           <input id="search-input" type="text" placeholder="제목·설교자·구절·태그 검색"
             class="w-full pl-9 pr-3 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400">
@@ -78,9 +78,9 @@
         <button onclick="openForm()" class="editor-only hidden px-4 py-2.5 rounded-xl emerald-gradient text-white text-sm font-bold shadow-sm hover:opacity-90 transition-all whitespace-nowrap">
           <i class="fas fa-plus mr-1"></i> 추가
         </button>
-        <button onclick="shareLatestSermon()" title="이번 주 설교 공유"
-          class="px-3.5 py-2.5 rounded-xl border border-stone-200 text-stone-500 text-sm font-bold hover:bg-stone-50 transition-all whitespace-nowrap">
-          <i class="fas fa-share-nodes"></i>
+        <button onclick="viewLatestSermon()" title="이번 주 설교 보기"
+          class="px-3.5 py-2.5 rounded-xl border border-stone-200 text-stone-500 text-sm font-bold hover:bg-stone-50 transition-all whitespace-nowrap shrink-0">
+          <i class="fas fa-calendar-week"></i>
         </button>
       </div>
 
@@ -605,15 +605,15 @@ function shareCurrentSermon() {
   shareLink(url, s.title, [s.date, s.speaker].filter(Boolean).join(' · '));
 }
 
-// 홈 화면 공유 버튼: 목록 전체가 아니라 '이번 주(가장 최근) 설교' 한 건만 공유한다.
-function shareLatestSermon() {
+// 홈 화면의 '이번주' 버튼: 목록이 아니라 가장 최근(이번 주) 설교 화면으로 바로 이동한다.
+// 실제 공유(카톡 전송 등)는 그 설교 상세화면에 있는 공유 버튼으로 한다.
+function viewLatestSermon() {
   if (!sermons.length) {
-    shareLink(location.origin + location.pathname, '나의 설교 아카이브', '아직 등록된 설교가 없습니다.');
+    alert('아직 등록된 설교가 없습니다.');
     return;
   }
   const latest = [...sermons].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
-  const url = location.origin + location.pathname + '#' + latest.id;
-  shareLink(url, latest.title, [latest.date, latest.speaker].filter(Boolean).join(' · '));
+  openDetail(latest.id);
 }
 
 function show(viewId) {
